@@ -1,0 +1,50 @@
+/* formatting calendar boxes*/
+#calendar th {
+    border: 2px solid rgb(0, 0, 0);
+    padding: 20px;
+    background-color: blueviolet;
+    width: 150px;
+  }
+
+/* formatting delete button*/
+  .delete{
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+    top: 50%;
+    display: flex;
+    align-items: center;
+  }
+
+/* formatting general calendar*/
+  table{
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+/* centering all divs */
+div{
+    text-align: center;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+align-items: center;
+justify-content: center;
+}
+
+/* spacing help*/
+text{
+    margin: 20px;
+
+}
+
+/* formatting caption*/
+#calendar caption{
+    font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+    font-size:70px;
+}
+
+/* formatting backgronud*/
+body{
+    background-color: mediumpurple;
+}

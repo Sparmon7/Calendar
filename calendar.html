@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Calendar</title>
+  <link rel="stylesheet" type="text/css" href="calendar.css">
+</head>
+
+<body>
+  <script>
+    //calendar library
+    (function () {Date.prototype.deltaDays = function (c) {return new Date(this.getFullYear(), this.getMonth(), this.getDate() + c)}; Date.prototype.getSunday = function () {return this.deltaDays(-1 * this.getDay())}})();
+    function Week(c) {this.sunday = c.getSunday(); this.nextWeek = function () {return new Week(this.sunday.deltaDays(7))}; this.prevWeek = function () {return new Week(this.sunday.deltaDays(-7))}; this.contains = function (b) {return this.sunday.valueOf() === b.getSunday().valueOf()}; this.getDates = function () {for (var b = [], a = 0; 7 > a; a++)b.push(this.sunday.deltaDays(a)); return b}}
+    function Month(c, b) {this.year = c; this.month = b; this.nextMonth = function () {return new Month(c + Math.floor((b + 1) / 12), (b + 1) % 12)}; this.prevMonth = function () {return new Month(c + Math.floor((b - 1) / 12), (b + 11) % 12)}; this.getDateObject = function (a) {return new Date(this.year, this.month, a)}; this.getWeeks = function () {var a = this.getDateObject(1), b = this.nextMonth().getDateObject(0), c = [], a = new Week(a); for (c.push(a); !a.contains(b);)a = a.nextWeek(), c.push(a); return c}};
+  </script>
+
+  <!-- login and logout buttons-->
+  <div id=logs>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button id="login_btn">Log In</button>
+    <button id="createUser"> Create User</button>
+    <button id="logout_btn">Log Out</button>
+    <button id="deleteUser"> Delete User</button>
+  </div>
+  <br>
+  <div>
+    <button id="prev_decade_btn">Last Decade</button>
+    <button id="prev_year_btn">Last Year</button>
+    <button id="prev_btn">Last Month</button>
+    <button id="next_btn">Next Month</button>
+    <button id="next_year_btn">Next Year</button>
+    <button id="next_decade_btn">Next Decade</button>
+  </div>
+  <br>
+  <!-- calendar-->
+  <table id="calendar">
+    <caption> hi </caption>
+
+
+    <tr>
+      <th>Sunday</th>
+      <th>Monday</th>
+      <th>Tuesday</th>
+      <th>Wednesday</th>
+      <th>Thursday</th>
+      <th>Friday</th>
+      <th>Saturday</th>
+    </tr>
+  </table>
+
+  <!-- division that allows user to add event-->
+  <div id="eventsAdd">
+    Add an event!<br>
+    Event Name: <input type="text" name="eventName" placeholder="">
+    Date and Time: <input type="datetime-local" id="datepicker">
+    Tag: <select name="tag" id="tag">
+      <option value="">No Tag</option>
+      <option value="Work">Work</option>
+      <option value="School">School</option>
+      <option value="Home">Home</option>
+    </select>
+    <button id="submit" value="Submit">Submit</button>
+    <br>
+
+    <!-- filtering options-->
+    Filter By Tag: <select name="tagged" id="tagged">
+      <option value="None">No Filter</option>
+      <option value="Work">Work</option>
+      <option value="School">School</option>
+      <option value="Home">Home</option>
+    </select>
+  </div>
+
+
+  <script>
+    //intialize variables
+    let storeFilter = "None";
+    const span = {
+      beginDate: new Date(2022, 8, 25),
+      endDate: new Date(2022, 10, 5)
+    }
+    const currentYear = new Date().getFullYear();
+    const curMonth = new Date().getMonth();
+
+    //adding event listeners for buttons
+    document.getElementById("login_btn").addEventListener("click", loginAjax, false);
+    document.getElementById("createUser").addEventListener("click", createUser, false);
+    document.getElementById("logout_btn").addEventListener("click", logoutAjax, false);
+    document.getElementById("deleteUser").addEventListener("click", deleteUser, false);
+    document.getElementById("prev_btn").addEventListener("click", function () {
+      currentMonth = currentMonth.prevMonth();
+      checkLogged();
+    }, true);
+    document.getElementById("next_btn").addEventListener("click", function () {
+      currentMonth = currentMonth.nextMonth();
+      checkLogged();
+    }, true);
+    document.getElementById("prev_year_btn").addEventListener("click", function () {
+      for (let i = 0; i < 12; i++) {
+        currentMonth = currentMonth.prevMonth();
+      }
+      checkLogged();
+    }, true);
+    document.getElementById("next_year_btn").addEventListener("click", function () {
+      for (let i = 0; i < 12; i++) {
+        currentMonth = currentMonth.nextMonth();
+      }
+      checkLogged();
+    }, true);
+    document.getElementById("prev_decade_btn").addEventListener("click", function () {
+      for (let i = 0; i < 120; i++) {
+        currentMonth = currentMonth.prevMonth();
+      }
+      checkLogged();
+    }, true);
+    document.getElementById("next_decade_btn").addEventListener("click", function () {
+      for (let i = 0; i < 120; i++) {
+        currentMonth = currentMonth.nextMonth();
+      }
+      checkLogged();
+    }, true);
+    document.getElementById('tagged').addEventListener('change', checkLogged);
+    document.getElementById('submit').addEventListener('click', create);
+
+    //check if logged in
+    async function checkLogged() {
+      //this code was taken from https://itnext.io/async-and-await-in-javascript-the-extension-to-a-promise-f4e0048964ac
+      let res = await fetch("checkLogged.php", {
+        method: "GET",
+        headers: {'content-type': 'application/json'}
+      }).catch(err => console.log(err));
+      if (res.status == 200) {
+        let json = await res.json();
+        if (json.logged) {
+          toggleLogOut();
+        } else {
+          toggleLogIn();
+        }
+        updateCalendar(json.logged);
+      }
+      //end of code segment
+    }
+
+    //create user
+    function createUser(event) {
+      const username = document.getElementById("username").value; // Get the username from the form
+      const password = document.getElementById("password").value; // Get the password from the form
+      // Make a URL-encoded string for passing POST data:
+      const data = {'username': username, 'password': password};
+      fetch("createUser.php", {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: {'content-type': 'application/json'}
+      })
+        .then(response => response.json())
+        .then(data => alert(data.success ? "User was created!" : data.message))
+        .then(data => toggleLogIn())
+        .catch(err => console.log(err));
+    }
+
+    //login
+    function loginAjax(event) {
+      const username = document.getElementById("username").value; // Get the username from the form
+      const password = document.getElementById("password").value; // Get the password from the form
+      // Make a URL-encoded string for passing POST data:
+      const data = {'username': username, 'password': password};
+      fetch("login_ajax.php", {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: {'content-type': 'application/json'}
+      })
+        .then(response => response.json())
+        .then(data => updateCalendar(data.success))
+        .catch(err => console.log(err));
+    }
+
+    //delete user
+    function deleteUser(event) {
+      fetch("deleteUser.php", {
+        method: 'get',
+        headers: {'content-type': 'application/json'}
+      })
+        .then(response => response.json())
+        .then(data => alert(data.success ? "User was deleted" : data.message))
+        .then(data => updateCalendar(false))
+        .catch(err => console.log(err));
+    }
+
+    //logout
+    function logoutAjax(event) {
+      fetch("logout_ajax.php", {
+        method: 'get',
+        headers: {'content-type': 'application/json'}
+      })
+        .then(response => response.json())
+        .then(data => updateCalendar(false))
+        .catch(err => console.log(err));
+    }
+
+    //creating login logout toggling functionality
+    function toggleLogOut() {
+      let old = document.getElementById("username");
+      old.style.display = "none";
+      let ol = document.getElementById("password");
+      ol.style.display = "none";
+      let o = document.getElementById("login_btn");
+      o.style.display = "none";
+      let d = document.getElementById("createUser");
+      d.style.display = "none";
+      document.getElementById("logout_btn").style.display = "block";
+      document.getElementById("deleteUser").style.display = "block";
+      storeFilter = "None";
+      document.getElementById("eventsAdd").style.display = "block";
+      document.getElementsByName("eventName")[0].value = "";
+      document.getElementById("datepicker").value = "";
+    }
+    function toggleLogIn() {
+      let old = document.getElementById("username");
+      old.value = "";
+      old.style.display = "block";
+      let ol = document.getElementById("password");
+      ol.setAttribute("placeholder", "Password");
+      ol.value = "";
+      ol.style.display = "block";
+      let o = document.getElementById("login_btn");
+      o.style.display = "block";
+      let d = document.getElementById("createUser");
+      d.style.display = "block";
+      document.getElementById("logout_btn").style.display = "none";
+      document.getElementById("deleteUser").style.display = "none";
+      document.getElementById("eventsAdd").style.display = "none";
+    }
+
+
+
+    //starting the creation of the calendar
+    currentMonth = new Month(currentYear, curMonth);
+    checkLogged();
+
+    //main function that updates the calendar
+    function updateCalendar(logIn) {
+      deleteAll();
+      if (!logIn) {
+        toggleLogIn();
+      } else {
+        toggleLogOut();
+      }
+
+      //labeling top of calendar
+      if (currentMonth.month < 9) {
+        document.getElementsByTagName("caption")[0].innerHTML = new Date('' + currentMonth.year + '-0' + (currentMonth.month + 1) + '-01T01:00:00').toUTCString().substring(8, 16);
+      } else {
+        document.getElementsByTagName("caption")[0].innerHTML = new Date('' + currentMonth.year + '-' + (currentMonth.month + 1) + '-01T01:00:00').toUTCString().substring(8, 16);
+      }
+      document.getElementsByTagName("caption")[0].innerHTML = document.getElementsByTagName("caption")[0].innerHTML;
+
+      let weeks = currentMonth.getWeeks();
+      for (let w = 0; w < weeks.length; w++) {
+        let days = weeks[w].getDates();
+        // days contains normal JavaScript Date objects.
+        const newWeek = document.createElement("tr");
+        for (let d = 0; d < days.length; d++) {
+          const newDay = document.createElement("th");
+          newDay.innerHTML = days[d].getUTCDate() + "<br>";
+          newDay.setAttribute("id", Date.parse(days[d]));
+          newWeek.appendChild(newDay);
+
+          //setting span of current calendar
+          if (d == 0 && w == 0) {
+            span.beginDate = days[d];
+          }
+          if (d == days.length - 1 && w == weeks.length - 1) {
+            span.endDate = days[d];
+          }
+        }
+        document.getElementById("calendar").appendChild(newWeek);
+      }
+
+      //adding events if logged and checking if needs to be filtered
+      if (logIn) {
+        storeFilter = document.getElementById("tagged").value;
+        if (storeFilter === "None") {
+          updateEvents();
+        }
+        else {
+          const filter = storeFilter;
+          const data = {'filter': filter};
+          fetch("filter.php", {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: {'content-type': 'application/json'}
+          })
+            .then(response => response.json())
+            .then(data => {
+              updateEvents(data.data);
+            })
+            .catch(err => console.log(err));
+        }
+      }
+    }
+
+    //fetches events, which is array of jsons
+    function getEvents() {
+      //creates array of jsons
+      const pathToPhpFile = 'getEvents.php';
+      return fetch(pathToPhpFile, {
+        method: "GET",
+        headers: {'content-type': 'application/json'}
+
+        //this code was sourced from https://stackoverflow.com/questions/47604040/how-to-get-data-returned-from-fetch-promise
+      }).then((response) => {
+        return response.json().then((data) => {
+          return data;
+          //end of sourced code
+        }).catch((err) => {
+          console.log(err);
+        })
+      });
+    }
+
+    //actually adds result from getEvents to the calendar
+    function updateEvents(filterData) {
+      const update = (events) => {
+        if (events != null) {
+          for (let i = 0; i < Object.keys(events).length; i++) {
+            let curEvent = events[i];
+            let date = new Date(curEvent.dateTime.slice(0, 10));
+            if (date >= span.beginDate && date <= span.endDate) {
+              if (document.querySelectorAll('[eventid="' + curEvent.eventid + '"]').length == 0) {
+                const but = document.createElement("button");
+                if (curEvent.tag != "") {
+                  but.innerHTML = curEvent.eventName + "-" + curEvent.tag + "@" + curEvent.dateTime.slice(11, 16);
+                }
+                else {
+                  but.innerHTML = curEvent.eventName + "@" + curEvent.dateTime.slice(11, 16);
+                }
+                but.setAttribute('eventid', curEvent.eventid);
+
+                document.getElementById(date.getTime() + 18000000).appendChild(but);
+                but.addEventListener("click", function () {
+                  addButtons(curEvent.eventName, curEvent.eventid, curEvent.tag, curEvent.dateTime);
+                }, false);
+              }
+            }
+          }
+        }
+
+      }
+
+      //see if filtered data is passed
+      if (filterData) {
+        update(filterData);
+      } else {
+        getEvents().then((jsonData) => {
+          update(jsonData);
+        })
+      }
+    }
+
+    //gets rid of current data and editor/delete functionality if open
+    function deleteAll() {
+      if (document.getElementById("delete") != null) {
+        const old = document.getElementById("delete");
+        old.remove();
+      }
+      if (document.getElementById("editing") != null) {
+        const old = document.getElementById("editing");
+        old.remove();
+      }
+      for (let i = document.getElementById("calendar").getElementsByTagName("tr").length - 1; i >= 1; i--) {
+        let old = document.getElementById("calendar").getElementsByTagName("tr")[i];
+        document.getElementById("calendar").removeChild(old);
+      }
+    }
+
+    //add edit and delete functionality of a given event
+    function addButtons(eventName, eventid, tag, dateTime) {
+      if (document.getElementById("delete") != null) {
+        document.getElementById("delete").remove();
+      }
+      if (document.getElementById("editing") != null) {
+        document.getElementById("editing").remove();
+      }
+      const del = document.createElement("button");
+      del.setAttribute("id", "delete");
+      del.setAttribute("class", "delete");
+      del.innerHTML = "Delete " + eventName;
+      document.getElementById("calendar").after(del);
+
+      //creates all parts of editor tasks
+      const div = document.createElement("div");
+      div.setAttribute("id", "editing");
+
+      const texty = document.createElement("input");
+      texty.setAttribute("type", "text");
+      texty.setAttribute("name", "eventName");
+      texty.value = eventName;
+      div.appendChild(texty);
+
+      const datey = document.createElement("input");
+      datey.setAttribute("type", "datetime-local");
+      datey.value = dateTime;
+      div.appendChild(datey);
+
+      const taggy = document.createElement("select");
+      taggy.setAttribute("name", "tag");
+      taggy.setAttribute("id", "tag");
+      div.appendChild(taggy);
+
+      const noTag = document.createElement("option");
+      noTag.setAttribute("value", "");
+      noTag.innerHTML = "No Tag";
+      taggy.appendChild(noTag);
+
+      const work = document.createElement("option");
+      work.setAttribute("value", "Work");
+      work.innerHTML = "Work";
+      taggy.appendChild(work);
+
+      const school = document.createElement("option");
+      school.setAttribute("value", "School");
+      school.innerHTML = "School";
+      taggy.appendChild(school);
+
+      const home = document.createElement("option");
+      home.setAttribute("value", "Home");
+      home.innerHTML = "Home";
+      taggy.appendChild(home);
+
+      taggy.value = tag;
+
+      const editSub = document.createElement("button");
+      editSub.setAttribute("id", "editSub");
+      editSub.innerHTML = "Edit " + eventName;
+      div.appendChild(editSub);
+
+      editSub.addEventListener("click", function () {
+        const pathToPhpFile = 'edit.php';
+        const data = {'eventid': eventid, 'eventName': texty.value, 'dateTime': datey.value, 'tag': taggy.options[taggy.selectedIndex].value};
+        fetch(pathToPhpFile, {
+          method: 'POST',
+          body: JSON.stringify(data),
+          headers: {'content-type': 'application/json'}
+        })
+          .then((data) => {
+            checkLogged();
+          })
+          .catch(err => console.log(err));
+      })
+      document.getElementById("calendar").after(div);
+      //delete functionality
+      del.addEventListener("click", function () {
+        const pathToPhpFile = 'delete.php';
+        const data = {'eventid': eventid};
+        fetch(pathToPhpFile, {
+          method: 'POST',
+          body: JSON.stringify(data),
+          headers: {'content-type': 'application/json'}
+        })
+          .then((data) => {
+            checkLogged();
+          })
+          .catch(err => console.log(err));
+      })
+
+      //hide the adding bar
+
+      document.getElementById("eventsAdd").style.display = "none";
+    }
+
+    function create(event) {
+      const eventName = document.getElementsByName("eventName")[0].value;
+      const dateTime = document.getElementById("datepicker").value;
+      const tag = document.getElementsByName("tag")[0].value;
+
+      // Make a URL-encoded string for passing POST data:
+      const data = {'eventName': eventName, 'dateTime': dateTime, 'tag': tag};
+      fetch("create.php", {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: {'content-type': 'application/json'}
+      })
+        .then(response => response.json())
+        .then(data => console.log(data.success ? "Your event has been added!" : `Your event failed:' ${data.message}`))
+        .then(function () {
+        })
+        .then(data => checkLogged())
+        .catch(err => console.log(err));
+
+      //reset add values to blank
+      document.getElementsByName("eventName")[0].value = "";
+      document.getElementById("datepicker").value = "";
+      document.getElementsByName("tag")[0].value = "";
+    }
+  </script>
+</body>
+
+</html>
